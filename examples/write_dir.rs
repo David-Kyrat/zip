@@ -1,13 +1,13 @@
 use std::io::{Seek, Write};
 use std::iter::Iterator;
+use std::process::exit;
 use zip::result::ZipError;
 use zip::write::FileOptions;
 
-use std::fs::{File, self};
-use std::path::Path;
-use walkdir::{DirEntry, WalkDir};
+use std::fs::{self, File};
+use std::path::{Path, PathBuf};
 use std::time::Instant;
-
+use walkdir::{DirEntry, WalkDir};
 
 fn main() {
     std::process::exit(real_main());
@@ -40,29 +40,40 @@ const METHOD_ZSTD: Option<zip::CompressionMethod> = None;
 
 fn real_main() -> i32 {
     let args: Vec<_> = std::env::args().collect();
-    if args.len() < 3 {
+
+    if args.len() < 2 {
         println!(
             "Usage: {} <source_directory> <destination_zipfile>",
             args[0]
         );
         return 1;
     }
-
-    let src_dir = &*args[1];
-    let dst_file = &*args[2];
+    let (src_dir, dst_file) = (
+        args[1].to_string(),
+        if args.len() < 3 {
+            format!("{}.zip", args[1])
+        } else {
+            args[2].to_string()
+        },
+    );
     for &method in [METHOD_STORED, METHOD_DEFLATED, METHOD_BZIP2, METHOD_ZSTD].iter() {
         if method.is_none() {
             continue;
         }
-        match doit(src_dir, dst_file, method.unwrap()) {
-            Ok(_) => println!("done: {src_dir} written to {dst_file}"),
-            Err(e) => println!("Error: {e:?}"),
+        match doit(&src_dir, &dst_file, method.unwrap()) {
+            Ok(_) => {
+                println!("done: {src_dir} written to {dst_file}");
+                exit(0)
+            }
+
+            Err(e) => {
+                println!("Error: {e:?}");
+                exit(1)
+            }
         }
     }
-
     0
 }
-
 
 fn zip_dir<T>(
     it: &mut dyn Iterator<Item = DirEntry>,
@@ -81,22 +92,21 @@ where
         .compression_method(method)
         .unix_permissions(0o755);
 
-    // let mut buffer = Vec::new();
     let start = Instant::now();
     for entry in it {
         let path = entry.path();
-        let name = path.to_str().unwrap_or_else(|| "");
-        // let name = path.strip_prefix(Path::new(prefix)).unwrap();
-
-        // Write file or directory explicitly
-        // Some unzip tools unzip files with directory paths correctly, some do not!
+        let name = path;
+        // Write file or directory explicitly. Some unzip tools unzip files with directory paths correctly, some do not!
         if path.is_file() {
             // println!("adding file {path:?} as {name:?} ...");
-            zip.start_file(name, options)?;
+            #[allow(deprecated)]
+            // Not deprecated method force the use of string which results into corrupt path if "\" are used instead of "/" (e.g. on Windows)
+            zip.start_file_from_path(name, options)?;
             zip.write_all(fs::read(name).unwrap_or_default().as_slice())?;
-        } else if !name.is_empty() {
+        } else if !name.as_os_str().is_empty() {
             // println!("adding dir {path:?} as {name:?} ...");
-            zip.add_directory(name, options)?;
+            #[allow(deprecated)]
+            zip.add_directory_from_path(name, options)?;
         }
     }
     let duration = start.elapsed();
@@ -162,7 +172,6 @@ fn doit(
 
     let walkdir = WalkDir::new(src_dir);
     let it = walkdir.into_iter();
-
 
     zip_dir(&mut it.filter_map(|e| e.ok()), src_dir, file, method)?;
 
