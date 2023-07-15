@@ -7,8 +7,6 @@ zip-rs
 
 [Documentation](https://docs.rs/zip/0.6.3/zip/)
 
-(Forked from [zip-rs/zip](https://github.com/zip-rs/zip) not much has changed)
-
 Info
 ----
 

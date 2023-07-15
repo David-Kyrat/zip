@@ -1,12 +1,13 @@
-use std::io::prelude::*;
 use std::io::{Seek, Write};
 use std::iter::Iterator;
 use zip::result::ZipError;
 use zip::write::FileOptions;
 
-use std::fs::File;
+use std::fs::{File, self};
 use std::path::Path;
 use walkdir::{DirEntry, WalkDir};
+use std::time::Instant;
+
 
 fn main() {
     std::process::exit(real_main());
@@ -62,7 +63,50 @@ fn real_main() -> i32 {
     0
 }
 
+
 fn zip_dir<T>(
+    it: &mut dyn Iterator<Item = DirEntry>,
+    prefix: &str,
+    writer: T,
+    method: zip::CompressionMethod,
+) -> zip::result::ZipResult<()>
+where
+    T: Write + Seek,
+{
+    dbg!("zip dir called");
+    let mut zip = zip::ZipWriter::new(writer);
+    zip.add_directory(prefix, Default::default())?;
+
+    let options = FileOptions::default()
+        .compression_method(method)
+        .unix_permissions(0o755);
+
+    // let mut buffer = Vec::new();
+    let start = Instant::now();
+    for entry in it {
+        let path = entry.path();
+        let name = path.to_str().unwrap_or_else(|| "");
+        // let name = path.strip_prefix(Path::new(prefix)).unwrap();
+
+        // Write file or directory explicitly
+        // Some unzip tools unzip files with directory paths correctly, some do not!
+        if path.is_file() {
+            // println!("adding file {path:?} as {name:?} ...");
+            zip.start_file(name, options)?;
+            zip.write_all(fs::read(name).unwrap_or_default().as_slice())?;
+        } else if !name.is_empty() {
+            // println!("adding dir {path:?} as {name:?} ...");
+            zip.add_directory(name, options)?;
+        }
+    }
+    let duration = start.elapsed();
+    eprintln!("Duration: {:#?}", &duration);
+
+    zip.finish()?;
+    Result::Ok(())
+}
+
+/* fn zip_dir<T>(
     it: &mut dyn Iterator<Item = DirEntry>,
     prefix: &str,
     writer: T,
@@ -102,7 +146,7 @@ where
     }
     zip.finish()?;
     Result::Ok(())
-}
+} */
 
 fn doit(
     src_dir: &str,
@@ -118,6 +162,7 @@ fn doit(
 
     let walkdir = WalkDir::new(src_dir);
     let it = walkdir.into_iter();
+
 
     zip_dir(&mut it.filter_map(|e| e.ok()), src_dir, file, method)?;
 

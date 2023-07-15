@@ -1,4 +1,4 @@
-use std::io::prelude::*;
+use std::{fs, io::prelude::*, path::PathBuf};
 use zip::write::FileOptions;
 
 fn main() {
@@ -12,13 +12,37 @@ fn real_main() -> i32 {
         return 1;
     }
 
-    let filename = &*args[1];
-    match doit(filename) {
-        Ok(_) => println!("File written to {filename}"),
-        Err(e) => println!("Error: {e:?}"),
-    }
+    let (zip_name, tozip_path) = (&*args[2], PathBuf::from(&*args[1]));
 
+    match zip_file(zip_name, &tozip_path) {
+        Ok(_) => println!("File written to {zip_name}"),
+        Err(e) => eprintln!("Error: {e:?}"),
+    }
     0
+}
+
+fn zip_file(zip_name: &str, tozip_path: &PathBuf) -> zip::result::ZipResult<()> {
+    let path = std::path::Path::new(zip_name);
+    let file = std::fs::File::create(path).unwrap();
+
+    let mut zip = zip::ZipWriter::new(file);
+
+    let options = FileOptions::default()
+        .compression_method(zip::CompressionMethod::Stored)
+        .unix_permissions(0o755);
+
+    // zip.start_file(tozip_path.as_os_str().to_str().unwrap(), options)?;
+    zip.start_file(
+        tozip_path.file_name().map(|s| s.to_str().unwrap()).unwrap(),
+        options,
+    )?;
+    zip.write_all(
+        &fs::read(tozip_path)
+            .expect(&format!("File to zip {:?} should be readable.", tozip_path))
+            .as_slice(),
+    )?;
+    zip.finish()?;
+    Ok(())
 }
 
 fn doit(filename: &str) -> zip::result::ZipResult<()> {
