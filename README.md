@@ -10,6 +10,7 @@ zip-rs
 Info
 ----
 
+**Forked from [zip-rs/zip (v.0.6.3)](https://github.com/zip-rs/zip/tree/21a20584bc9e05dfa4f3c5b0bc420a1389fae2c3) not much has changed.**
 
 A zip library for rust which supports reading and writing of simple ZIP files.
 
