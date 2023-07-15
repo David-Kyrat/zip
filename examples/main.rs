@@ -60,7 +60,7 @@ fn real_main() -> i32 {
         args[2].to_string()
     };
     // let src_dir = src_dir.display().to_string();
-    for &method in [METHOD_STORED, METHOD_DEFLATED, METHOD_BZIP2, METHOD_ZSTD].iter() {
+    for &method in [ METHOD_ZSTD].iter() {
         if method.is_none() {
             continue;
         }
