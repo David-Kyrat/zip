@@ -51,7 +51,7 @@ name = "read_metadata"
 harness = false
 
 [[bin]]
-name = "write_dir"
-path = "examples/write_dir.rs"
+name = "zip"
+path = "examples/main.rs"
 test = false
 bench = false
