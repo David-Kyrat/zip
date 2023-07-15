@@ -1,13 +1,14 @@
-use std::io::{Seek, Write};
-use std::iter::Iterator;
-use std::process::exit;
-use zip::result::ZipError;
-use zip::write::FileOptions;
+use std::{
+    fs::{self, File},
+    io::{Seek, Write},
+    iter::Iterator,
+    path::{Path, PathBuf},
+    process::exit,
+    time::Instant,
+};
 
-use std::fs::{self, File};
-use std::path::{Path, PathBuf};
-use std::time::Instant;
 use walkdir::{DirEntry, WalkDir};
+use zip::write::FileOptions;
 
 fn main() {
     std::process::exit(real_main());
@@ -48,14 +49,19 @@ fn real_main() -> i32 {
         );
         return 1;
     }
-    let (src_dir, dst_file) = (
-        args[1].to_string(),
-        if args.len() < 3 {
-            format!("{}.zip", args[1])
-        } else {
-            args[2].to_string()
-        },
-    );
+    let mut src_dir = args[1].to_string();
+    if src_dir.ends_with("/") || src_dir.ends_with("\\") {
+        println!("test");
+        src_dir.remove(src_dir.len() - 1);
+    }
+    dbg!(&src_dir);
+
+    let dst_file = if args.len() < 3 {
+        format!("{}.zip", src_dir)
+    } else {
+        args[2].to_string()
+    };
+    // let src_dir = src_dir.display().to_string();
     for &method in [METHOD_STORED, METHOD_DEFLATED, METHOD_BZIP2, METHOD_ZSTD].iter() {
         if method.is_none() {
             continue;
@@ -84,7 +90,6 @@ fn zip_dir<T>(
 where
     T: Write + Seek,
 {
-    dbg!("zip dir called");
     let mut zip = zip::ZipWriter::new(writer);
     zip.add_directory(prefix, Default::default())?;
 
@@ -114,6 +119,29 @@ where
 
     zip.finish()?;
     Result::Ok(())
+}
+
+fn zip_file(zip_name: &str, tozip_path: &PathBuf) -> zip::result::ZipResult<()> {
+    let path = std::path::Path::new(zip_name);
+    let file = std::fs::File::create(path).unwrap();
+
+    let mut zip = zip::ZipWriter::new(file);
+
+    let options = FileOptions::default()
+        .compression_method(zip::CompressionMethod::Stored)
+        .unix_permissions(0o755);
+
+    zip.start_file(
+        tozip_path.file_name().map(|s| s.to_str().unwrap()).unwrap(),
+        options,
+    )?;
+    zip.write_all(
+        &fs::read(tozip_path)
+            .expect(&format!("File to zip {:?} should be readable.", tozip_path))
+            .as_slice(),
+    )?;
+    zip.finish()?;
+    Ok(())
 }
 
 /* fn zip_dir<T>(
@@ -164,7 +192,7 @@ fn doit(
     method: zip::CompressionMethod,
 ) -> zip::result::ZipResult<()> {
     if !Path::new(src_dir).is_dir() {
-        return Err(ZipError::FileNotFound);
+        return zip_file(dst_file, &PathBuf::from(src_dir));
     }
 
     let path = Path::new(dst_file);
