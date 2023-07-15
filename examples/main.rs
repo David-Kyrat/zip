@@ -51,10 +51,8 @@ fn real_main() -> i32 {
     }
     let mut src_dir = args[1].to_string();
     if src_dir.ends_with("/") || src_dir.ends_with("\\") {
-        println!("test");
         src_dir.remove(src_dir.len() - 1);
     }
-    dbg!(&src_dir);
 
     let dst_file = if args.len() < 3 {
         format!("{}.zip", src_dir)
